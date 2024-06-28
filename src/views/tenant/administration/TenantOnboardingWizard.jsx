@@ -1,34 +1,16 @@
-import React, { useState, useRef, useEffect } from 'react'
-import {
-  CAccordion,
-  CAccordionBody,
-  CAccordionHeader,
-  CAccordionItem,
-  CButton,
-  CCallout,
-  CCol,
-  CFormLabel,
-  CListGroup,
-  CListGroupItem,
-  CRow,
-  CSpinner,
-} from '@coreui/react'
+import React, { useRef, useEffect } from 'react'
+import { CAccordion, CCallout, CCol, CRow } from '@coreui/react'
 import { Field, FormSpy } from 'react-final-form'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faExclamationTriangle, faTimes, faCheck } from '@fortawesome/free-solid-svg-icons'
 import { useSelector } from 'react-redux'
 import { CippWizard } from 'src/components/layout'
 import PropTypes from 'prop-types'
-import { RFFCFormCheck, RFFCFormInput, RFFCFormSwitch, RFFSelectSearch } from 'src/components/forms'
-import { CippCodeBlock, TenantSelector } from 'src/components/utilities'
+import { RFFCFormSwitch } from 'src/components/forms'
 import { useLazyGenericPostRequestQuery } from 'src/store/api/app'
-import {
-  CellDate,
-  WizardTableField,
-  cellDateFormatter,
-  cellNullTextFormatter,
-} from 'src/components/tables'
-import ReactTimeAgo from 'react-time-ago'
+import { WizardTableField, cellDateFormatter, cellNullTextFormatter } from 'src/components/tables'
+import { TitleButton } from 'src/components/buttons'
+import RelationshipOnboarding from 'src/views/tenant/administration/onboarding/RelationshipOnboarding'
 
 const Error = ({ name }) => (
   <Field
@@ -37,7 +19,7 @@ const Error = ({ name }) => (
     render={({ meta: { touched, error } }) =>
       touched && error ? (
         <CCallout color="danger">
-          <FontAwesomeIcon icon={faExclamationTriangle} color="danger" />
+          <FontAwesomeIcon icon={faExclamationTriangle} color="danger" className="me-2" />
           {error}
         </CCallout>
       ) : null
@@ -70,147 +52,11 @@ function useInterval(callback, delay, state) {
   }, [delay, state])
 }
 
-const RelationshipOnboarding = ({ relationship, gdapRoles }) => {
-  const [relationshipReady, setRelationshipReady] = useState(false)
-  const [refreshGuid, setRefreshGuid] = useState(false)
-  const [getOnboardingStatus, onboardingStatus] = useLazyGenericPostRequestQuery()
-  var headerIcon = relationshipReady ? 'check-circle' : 'question-circle'
-
-  useInterval(
-    async () => {
-      if (onboardingStatus.data?.Status == 'running' || onboardingStatus.data?.Status == 'queued') {
-        getOnboardingStatus({
-          path: '/api/ExecOnboardTenant',
-          values: { id: relationship.id },
-        })
-      }
-    },
-    5000,
-    onboardingStatus.data,
-  )
-
-  return (
-    <CAccordionItem>
-      <CAccordionHeader>
-        {onboardingStatus?.data?.Status == 'running' ? (
-          <CSpinner color="orange" size="sm" className="me-2" />
-        ) : (
-          <FontAwesomeIcon
-            icon={
-              (onboardingStatus?.data?.Status == 'succeeded' && 'check-circle') ||
-              (onboardingStatus?.data?.Status == 'failed' && 'times-circle') ||
-              'question-circle'
-            }
-            color={
-              (onboardingStatus?.data?.Status == 'succeeded' && 'green') ||
-              (onboardingStatus?.data?.Status == 'failed' && 'red') ||
-              'orange'
-            }
-            className="me-2"
-          />
-        )}
-        Onboarding Relationship: {}
-        {relationship.displayName}
-      </CAccordionHeader>
-      <CAccordionBody>
-        <CRow>
-          {(relationship?.customer?.displayName ||
-            onboardingStatus?.data?.Relationship?.customer?.displayName) && (
-            <CCol sm={12} md={6} className="mb-3">
-              <p className="fw-lighter">Customer</p>
-              {onboardingStatus?.data?.Relationship?.customer?.displayName
-                ? onboardingStatus?.data?.Relationship?.customer?.displayName
-                : relationship.customer.displayName}
-            </CCol>
-          )}
-          {onboardingStatus?.data?.Timestamp && (
-            <CCol sm={12} md={6} className="mb-3">
-              <p className="fw-lighter">Last Updated</p>
-              <ReactTimeAgo date={onboardingStatus?.data?.Timestamp} />
-            </CCol>
-          )}
-          <CCol sm={12} md={6} className="mb-3">
-            <p className="fw-lighter">Relationship Status</p>
-            {relationship.status}
-          </CCol>
-          <CCol sm={12} md={6} className="mb-3">
-            <p className="fw-lighter">Creation Date</p>
-            <CellDate cell={relationship.createdDateTime} format="short" />
-          </CCol>
-          {relationship.status == 'approvalPending' &&
-            onboardingStatus?.data?.Relationship?.status != 'active' && (
-              <CCol sm={12} md={6} className="mb-3">
-                <p className="fw-lighter">Invite URL</p>
-                <CippCodeBlock
-                  code={
-                    'https://admin.microsoft.com/AdminPortal/Home#/partners/invitation/granularAdminRelationships/' +
-                    relationship.id
-                  }
-                  language="text"
-                  showLineNumbers={false}
-                />
-              </CCol>
-            )}
-        </CRow>
-        {onboardingStatus.isUninitialized &&
-          getOnboardingStatus({
-            path: '/api/ExecOnboardTenant',
-            values: { id: relationship.id, gdapRoles },
-          })}
-        {onboardingStatus.isSuccess && (
-          <>
-            {onboardingStatus.data?.Status == 'failed' && (
-              <CButton
-                onClick={() =>
-                  getOnboardingStatus({
-                    path: '/api/ExecOnboardTenant?Retry=True',
-                    values: { id: relationship.id, gdapRoles },
-                  })
-                }
-                className="mb-3"
-              >
-                Retry
-              </CButton>
-            )}
-            <hr className="mb-3" />
-            {onboardingStatus.data?.OnboardingSteps?.map((step, idx) => (
-              <CRow key={idx}>
-                <CCol xs={12} md={4}>
-                  {step.Status == 'running' ? (
-                    <CSpinner size="sm" className="me-2" />
-                  ) : (
-                    <FontAwesomeIcon
-                      icon={
-                        (step.Status == 'succeeded' && 'check-circle') ||
-                        (step.Status == 'pending' && 'question-circle') ||
-                        (step.Status == 'failed' && 'times-circle')
-                      }
-                      color={
-                        (step.Status == 'succeeded' && 'green') ||
-                        (step.Status == 'pending' && 'white') ||
-                        (step.Status == 'failed' && 'red')
-                      }
-                      className="me-2"
-                    />
-                  )}{' '}
-                  {step.Title}
-                </CCol>
-                <CCol xs={12} md={8}>
-                  {step.Message}
-                </CCol>
-              </CRow>
-            ))}
-          </>
-        )}
-      </CAccordionBody>
-    </CAccordionItem>
-  )
-}
-
 const TenantOnboardingWizard = () => {
   const tenantDomain = useSelector((state) => state.app.currentTenant.defaultDomainName)
   const currentSettings = useSelector((state) => state.app)
   const [genericPostRequest, postResults] = useLazyGenericPostRequestQuery()
+  const requiredArray = (value) => (value && value.length !== 0 ? undefined : 'Required')
 
   const handleSubmit = async (values) => {}
   const columns = [
@@ -289,32 +135,41 @@ const TenantOnboardingWizard = () => {
           <h5 className="card-title mb-4">Choose a relationship</h5>
         </center>
         <hr className="my-4" />
-        <Field name="selectedRelationships">
+        <div className="mb-2">
+          <TitleButton href="/tenant/administration/gdap-invite" title="Create GDAP Invite" />
+        </div>
+        <Field name="selectedRelationships" validate={requiredArray}>
           {(props) => (
-            <WizardTableField
-              reportName="Add-GDAP-Relationship"
-              keyField="id"
-              path="/api/ListGraphRequest"
-              params={{ Endpoint: 'tenantRelationships/delegatedAdminRelationships' }}
-              columns={columns}
-              filterlist={[
-                { filterName: 'Active Relationships', filter: 'Complex: status eq active' },
-                { filterName: 'Terminated Relationships', filter: 'Complex: status eq terminated' },
-                {
-                  filterName: 'Pending Relationships',
-                  filter: 'Complex: status eq approvalPending',
-                },
-                {
-                  filterName: 'Active with Auto Extend',
-                  filter: 'Complex: status eq active; autoExtendDuration ne PT0S',
-                },
-                {
-                  filterName: 'Active without Auto Extend',
-                  filter: 'Complex: status eq active; autoExtendDuration eq PT0S',
-                },
-              ]}
-              fieldProps={props}
-            />
+            <>
+              <WizardTableField
+                reportName="Add-GDAP-Relationship"
+                keyField="id"
+                path="/api/ListGraphRequest"
+                params={{
+                  Endpoint: 'tenantRelationships/delegatedAdminRelationships',
+                  $filter:
+                    "(status eq 'active' or status eq 'approvalPending') and not startsWith(displayName,'MLT_')",
+                }}
+                columns={columns}
+                filterlist={[
+                  { filterName: 'Active Relationships', filter: 'Complex: status eq active' },
+                  {
+                    filterName: 'Pending Relationships',
+                    filter: 'Complex: status eq approvalPending',
+                  },
+                  {
+                    filterName: 'Active with Auto Extend',
+                    filter: 'Complex: status eq active; autoExtendDuration ne PT0S',
+                  },
+                  {
+                    filterName: 'Active without Auto Extend',
+                    filter: 'Complex: status eq active; autoExtendDuration eq PT0S',
+                  },
+                ]}
+                fieldProps={props}
+              />
+              <Error name="selectedRelationships" />
+            </>
           )}
         </Field>
         <hr className="my-4" />
@@ -328,33 +183,60 @@ const TenantOnboardingWizard = () => {
           <h5 className="card-title mb-4">Tenant Onboarding Options</h5>
         </center>
         <hr className="my-4" />
-        <CFormLabel>
-          (Optional) Automatically map groups for relationships not created in CIPP. This will not
-          map groups that do not have a corresponding role in the relationship.
-        </CFormLabel>
-        <Field name="gdapRoles">
-          {(props) => (
-            <WizardTableField
-              reportName="gdaproles"
-              keyField="defaultDomainName"
-              path="/api/ListGDAPRoles"
-              columns={[
-                {
-                  name: 'Name',
-                  selector: (row) => row['RoleName'],
-                  sortable: true,
-                  exportselector: 'Name',
-                },
-                {
-                  name: 'Group',
-                  selector: (row) => row['GroupName'],
-                  sortable: true,
-                },
-              ]}
-              fieldProps={props}
-            />
-          )}
-        </Field>
+        <h5>Standards</h5>
+        <RFFCFormSwitch
+          name="standardsExcludeAllTenants"
+          helpText='Enabling this feature excludes this tenant from any top-level
+                                      "All Tenants" standard. This means that only the standards you
+                                      explicitly set for this tenant will be applied.'
+          label="Exclude this tenant from top-level standards"
+          className="mb-4"
+        />
+        <h5>Optional Settings</h5>
+        <p>
+          Use these options for relationships created outside of the CIPP Invite Wizard or if the
+          SAM user is missing required GDAP groups from the Partner Tenant.
+        </p>
+        <RFFCFormSwitch name="autoMapRoles" label="Map missing groups to GDAP Roles" />
+        <RFFCFormSwitch name="addMissingGroups" label="Add CIPP SAM user to missing groups" />
+        <FormSpy>
+          {/* eslint-disable react/prop-types */}
+          {(props) => {
+            return (
+              <>
+                {(props.values.autoMapRoles || props.values.addMissingGroups) && (
+                  <Field name="gdapRoles" validate={requiredArray}>
+                    {(props) => (
+                      <>
+                        <WizardTableField
+                          reportName="gdaproles"
+                          keyField="defaultDomainName"
+                          path="/api/ListGDAPRoles"
+                          isModal={true}
+                          columns={[
+                            {
+                              name: 'Name',
+                              selector: (row) => row['RoleName'],
+                              sortable: true,
+                              exportselector: 'Name',
+                            },
+                            {
+                              name: 'Group',
+                              selector: (row) => row['GroupName'],
+                              sortable: true,
+                            },
+                          ]}
+                          fieldProps={props}
+                        />
+                        <Error name="gdapRoles" />
+                      </>
+                    )}
+                  </Field>
+                )}
+              </>
+            )
+          }}
+        </FormSpy>
         <hr className="my-4" />
       </CippWizard.Page>
       <CippWizard.Page
@@ -382,6 +264,9 @@ const TenantOnboardingWizard = () => {
                           <RelationshipOnboarding
                             relationship={relationship}
                             gdapRoles={props.values.gdapRoles}
+                            autoMapRoles={props.values.autoMapRoles}
+                            addMissingGroups={props.values.addMissingGroups}
+                            standardsExcludeAllTenants={props.values.standardsExcludeAllTenants}
                             key={idx}
                           />
                         ))}
